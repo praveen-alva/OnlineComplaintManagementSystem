@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { io } from "socket.io-client";
 import { Link } from "react-router-dom";
+import ChatBot from "../../ChatBoat";
 
 import {
   BarChart,
@@ -571,6 +572,7 @@ const UserDashboard = () => {
         </div>
 
       </div>
+      <ChatBot/>
     </div>
   );
 };

@@ -14,6 +14,7 @@ import UserDashboard from './components/Dashboards/User/UserDashBoard';
 import WriteComplaint from './components/WriteComplaint';
 import ComplaintDetails from './components/ComplaintDetails';
 import ComplaintListByStatus from './components/ComplaintListByStatus';
+import ChatBot from './components/ChatBoat';
 
 
 function MainLayout() {
@@ -30,10 +31,12 @@ function MainLayout() {
         <Route path="/UserDashboard" element={<UserDashboard />} />
         <Route path='/AgentDashboard' element={<AgentDashboard/>}/>
         <Route path="/write" element={<WriteComplaint />} />
+
        
 
         <Route path="/complaint/:id" element={<ComplaintDetails />} />
         <Route path="/complaints/:status" element={<ComplaintListByStatus />} />
+        <Route path="/chatbot" element={<ChatBot/>}/>
 
         <Route
           path="/"
@@ -43,6 +46,7 @@ function MainLayout() {
               <Page1 />
               <Page2 />
               <Footer />
+              {/* <ChatBot/> */}
             </>
           }
         />
