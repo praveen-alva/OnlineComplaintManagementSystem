@@ -23,24 +23,69 @@ const Register = () => {
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError('');
+  e.preventDefault();
+  setError("");
 
-    if (form.password !== form.confirmPassword) {
-      return setError('Passwords do not match');
+  if (form.password !== form.confirmPassword) {
+    return setError("Passwords do not match");
+  }
+
+  try {
+    setLoading(true);
+
+    const registerData = {
+      name: form.name,
+      email: form.email,
+      password: form.password,
+      type: form.type,
+    };
+
+    console.log("Sending registration data:", registerData);
+
+    const res = await axios.post(
+      `${import.meta.env.VITE_BACKEND_URL || "http://localhost:5000"}/api/register`,
+      registerData,
+      {
+        withCredentials: true,
+      }
+    );
+
+    console.log("Registration response:", res.data);
+
+    const registeredUser = res.data.user;
+
+    if (registeredUser.type === "user") {
+      localStorage.setItem(
+        "user",
+        JSON.stringify(registeredUser)
+      );
+
+      localStorage.removeItem("agent");
+
+      navigate("/UserDashboard");
+    } else if (registeredUser.type === "agent") {
+      localStorage.setItem(
+        "agent",
+        JSON.stringify(registeredUser)
+      );
+
+      localStorage.removeItem("user");
+
+      navigate("/AgentDashboard");
     }
 
-    try {
-      setLoading(true);
-      const res = await axios.post('/api/register', form, { withCredentials: true });
-      localStorage.setItem('user', JSON.stringify(res.data.user));
-      navigate('/dashboard');
-    } catch (err) {
-      setError(err.response?.data?.message || 'Registration failed');
-    } finally {
-      setLoading(false);
-    }
-  };
+  } catch (err) {
+    console.error("Registration error:", err);
+    console.log("Backend response:", err.response?.data);
+
+    setError(
+      err.response?.data?.message ||
+      "Registration failed"
+    );
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <div className="min-h-screen flex justify-center items-center bg-[#e6edff] px-4">
@@ -86,9 +131,9 @@ const Register = () => {
               className="w-full px-3 py-2 border rounded"
             >
               <option value="">Select Account Type</option>
-              <option value="User">User</option>
-              <option value="Agent">Agent</option>
-              <option value="Admin">Admin</option>
+              <option value="user">User</option>
+              <option value="agent">Agent</option>
+              {/* <option value="Admin">Admin</option> */}
             </select>
           </div>
 

@@ -7,22 +7,49 @@ const router = express.Router();
 // Register
 router.post('/register', async (req, res) => {
   try {
+    console.log("REGISTER BODY:", req.body);
+
     const { name, email, password, type } = req.body;
+
     if (!name || !email || !password || !type) {
-      return res.status(400).json({ message: 'All fields are required' });
+      return res.status(400).json({
+        message: 'All fields are required'
+      });
     }
 
     const exists = await User.findOne({ email });
-    if (exists) return res.status(400).json({ message: 'Email already in use' });
+
+    if (exists) {
+      return res.status(400).json({
+        message: 'Email already in use'
+      });
+    }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    const newUser = new User({ name, email, password: hashedPassword, type });
+
+    const newUser = new User({
+      name,
+      email,
+      password: hashedPassword,
+      type
+    });
 
     await newUser.save();
-    res.status(201).json({ message: 'User created', user: newUser });
+
+    res.status(201).json({
+      message: 'User created',
+      user: {
+        name: newUser.name,
+        email: newUser.email,
+        type: newUser.type
+      }
+    });
+
   } catch (err) {
-    console.error(err.message);
-    res.status(500).json({ message: 'Server error' });
+    console.error("REGISTER ERROR:", err);
+    res.status(500).json({
+      message: 'Server error'
+    });
   }
 });
 

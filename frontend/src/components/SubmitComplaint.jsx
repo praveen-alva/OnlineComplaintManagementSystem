@@ -1,184 +1,620 @@
-import React, { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import React, { useEffect, useState } from "react";
+import axios from "axios";
+import { io } from "socket.io-client";
+import { Link } from "react-router-dom";
 
-const BASE_URL = 'https://smartbridge-project-gvzr.onrender.com';
+import {
+  BarChart,
+  Bar,
+  PieChart,
+  Pie,
+  Cell,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from "recharts";
 
-const ComplaintDetails = () => {
-  const { id } = useParams();
-  const [complaint, setComplaint] = useState(null);
-  const [messages, setMessages] = useState([]);
-  const [messageText, setMessageText] = useState('');
+import {
+  FiClock,
+  FiCheckCircle,
+  FiAlertCircle,
+  FiFileText,
+  FiPlus,
+} from "react-icons/fi";
 
-  useEffect(() => {
-    const fetchComplaint = async () => {
-      try {
-        const res = await fetch(`${BASE_URL}/api/complaints/${id}`);
-        const data = await res.json();
-        if (res.ok) setComplaint(data);
-        else setComplaint(null);
-      } catch (err) {
-        console.error('❌ Fetch error:', err);
-        setComplaint(null);
-      }
-    };
+const BASE_URL =
+  import.meta.env.VITE_BACKEND_URL || "http://localhost:5000";
 
-    fetchComplaint();
-  }, [id]);
+const socket = io(BASE_URL);
 
-  const handleSendMessage = () => {
-    if (!messageText.trim()) return;
-    const now = new Date();
-    const message = {
-      sender: 'You',
-      text: messageText.trim(),
-      date: now.toLocaleDateString(),
-      time: now.toLocaleTimeString(),
-    };
-    setMessages((prev) => [...prev, message]);
-    setMessageText('');
+const UserDashboard = () => {
+  const [complaints, setComplaints] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  // Get logged-in user
+  const user = JSON.parse(localStorage.getItem("user") || "{}");
+
+  const userEmail = user.email;
+
+  // =====================================================
+  // FETCH ONLY LOGGED-IN USER COMPLAINTS
+  // =====================================================
+
+  const fetchMyComplaints = async () => {
+    try {
+      setLoading(true);
+
+      const res = await axios.get(
+        `${BASE_URL}/api/complaints`
+      );
+
+      const allComplaints =
+        res.data.complaints || res.data || [];
+
+      // IMPORTANT:
+      // Show only complaints belonging to logged-in user
+      const myComplaints = allComplaints.filter(
+        (complaint) =>
+          complaint.email?.toLowerCase() ===
+          userEmail?.toLowerCase()
+      );
+
+      setComplaints(myComplaints);
+    } catch (error) {
+      console.error(
+        "Failed to load complaints:",
+        error
+      );
+
+      setComplaints([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  if (!complaint) {
-    return (
-      <div className="text-center mt-10 text-red-500">
-        Complaint not found
-        <div>
-          <Link to="/dashboard" className="text-blue-500 underline mt-4 block">← Back to Dashboard</Link>
-        </div>
-      </div>
+  // =====================================================
+  // USE EFFECT
+  // =====================================================
+
+  useEffect(() => {
+    if (!userEmail) {
+      setComplaints([]);
+      setLoading(false);
+      return;
+    }
+
+    fetchMyComplaints();
+
+    // Agent updates complaint status
+    const handleStatusUpdate = (updatedComplaint) => {
+      // Only update if complaint belongs to this user
+      if (
+        updatedComplaint.email?.toLowerCase() !==
+        userEmail?.toLowerCase()
+      ) {
+        return;
+      }
+
+      setComplaints((prev) =>
+        prev.map((item) =>
+          item._id === updatedComplaint._id
+            ? updatedComplaint
+            : item
+        )
+      );
+    };
+
+    // New complaint
+    const handleNewComplaint = (newComplaint) => {
+      // Only add if this complaint belongs to this user
+      if (
+        newComplaint.email?.toLowerCase() !==
+        userEmail?.toLowerCase()
+      ) {
+        return;
+      }
+
+      setComplaints((prev) => {
+        // Prevent duplicate complaint
+        const exists = prev.some(
+          (item) => item._id === newComplaint._id
+        );
+
+        if (exists) {
+          return prev;
+        }
+
+        return [newComplaint, ...prev];
+      });
+    };
+
+    socket.on(
+      "complaintStatusUpdated",
+      handleStatusUpdate
     );
-  }
+
+    socket.on(
+      "newComplaint",
+      handleNewComplaint
+    );
+
+    return () => {
+      socket.off(
+        "complaintStatusUpdated",
+        handleStatusUpdate
+      );
+
+      socket.off(
+        "newComplaint",
+        handleNewComplaint
+      );
+    };
+  }, [userEmail]);
+
+  // =====================================================
+  // STATISTICS
+  // =====================================================
+
+  const total = complaints.length;
+
+  const pending = complaints.filter(
+    (c) =>
+      c.status?.toLowerCase() === "pending"
+  ).length;
+
+  const inProgress = complaints.filter(
+    (c) =>
+      c.status?.toLowerCase() === "in progress"
+  ).length;
+
+  const resolved = complaints.filter(
+    (c) =>
+      c.status?.toLowerCase() === "resolved"
+  ).length;
+
+  // =====================================================
+  // STATUS CHART
+  // =====================================================
+
+  const statusChartData = [
+    {
+      name: "Pending",
+      complaints: pending,
+    },
+    {
+      name: "In Progress",
+      complaints: inProgress,
+    },
+    {
+      name: "Resolved",
+      complaints: resolved,
+    },
+  ];
+
+  // =====================================================
+  // PIE CHART
+  // =====================================================
+
+  const pieData = [
+    {
+      name: "Pending",
+      value: pending,
+    },
+    {
+      name: "In Progress",
+      value: inProgress,
+    },
+    {
+      name: "Resolved",
+      value: resolved,
+    },
+  ];
+
+  const pieColors = [
+    "#ef4444",
+    "#f59e0b",
+    "#22c55e",
+  ];
+
+  // =====================================================
+  // CATEGORY CHART
+  // =====================================================
+
+  const categoryCounts = {};
+
+  complaints.forEach((complaint) => {
+    const category =
+      complaint.category || "Other";
+
+    categoryCounts[category] =
+      (categoryCounts[category] || 0) + 1;
+  });
+
+  const categoryChartData = Object.entries(
+    categoryCounts
+  ).map(([name, complaints]) => ({
+    name,
+    complaints,
+  }));
+
+  // =====================================================
+  // STATUS BADGE
+  // =====================================================
+
+  const getBadgeClass = (status) => {
+    switch (status?.toLowerCase()) {
+      case "resolved":
+        return "bg-green-100 text-green-700 border-green-200";
+
+      case "in progress":
+        return "bg-yellow-100 text-yellow-700 border-yellow-200";
+
+      case "pending":
+        return "bg-red-100 text-red-700 border-red-200";
+
+      default:
+        return "bg-gray-100 text-gray-700 border-gray-200";
+    }
+  };
+
+  // =====================================================
+  // UI
+  // =====================================================
 
   return (
-    <div className="min-h-screen w-full bg-[#f9fafc] px-4 py-6 flex flex-col gap-6 items-center">
-      <div className="w-[90%] flex flex-col lg:flex-row gap-4">
-        <div className="w-full lg:w-[75%] bg-white p-6 rounded shadow border space-y-4">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-            <div className="flex flex-col gap-2">
-              <h1 className="text-xl font-bold">{complaint.name}</h1>
-              <h1 className="text-xl font-bold">{complaint.title}</h1>
-              <div className="flex gap-2">
-                <p className="bg-yellow-100 text-red-800 px-3 py-1 rounded">{complaint.status}</p>
-                <p className="bg-yellow-100 text-red-800 px-3 py-1 rounded">{complaint.priority} Priority</p>
+    <div className="min-h-screen bg-gray-50 p-6">
+
+      <div className="max-w-7xl mx-auto space-y-6">
+
+        {/* HEADER */}
+
+        <header>
+          <h1 className="text-2xl font-bold text-gray-900">
+            My Dashboard
+          </h1>
+
+          <p className="text-sm text-gray-500">
+            Track your submitted complaints in real time
+          </p>
+        </header>
+
+        {/* USER INFO */}
+
+        {user.name && (
+          <div className="bg-white border rounded-xl p-4">
+            <p className="text-sm text-gray-500">
+              Welcome
+            </p>
+
+            <p className="text-lg font-semibold text-gray-900">
+              {user.name}
+            </p>
+          </div>
+        )}
+
+        {/* STATISTICS */}
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+
+          <StatCard
+            title="Total Complaints"
+            count={total}
+            icon={
+              <FiFileText className="text-blue-600" />
+            }
+          />
+
+          <StatCard
+            title="Pending"
+            count={pending}
+            icon={
+              <FiClock className="text-red-600" />
+            }
+          />
+
+          <StatCard
+            title="In Progress"
+            count={inProgress}
+            icon={
+              <FiAlertCircle className="text-yellow-600" />
+            }
+          />
+
+          <StatCard
+            title="Resolved"
+            count={resolved}
+            icon={
+              <FiCheckCircle className="text-green-600" />
+            }
+          />
+
+        </div>
+
+        {/* NEW COMPLAINT */}
+
+        <div className="bg-white rounded-xl shadow-sm border p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">
+              Submit a New Complaint
+            </h2>
+
+            <p className="text-sm text-gray-500 mt-1">
+              Have a new issue? Submit your complaint
+              and track its status.
+            </p>
+          </div>
+
+          <Link
+            to="/write"
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg font-medium"
+          >
+            <FiPlus />
+            New Complaint
+          </Link>
+
+        </div>
+
+        {/* DATA VISUALIZATION */}
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+          {/* BAR CHART */}
+
+          <div className="bg-white rounded-xl shadow-sm border p-6">
+
+            <h2 className="text-lg font-semibold mb-5">
+              Complaint Status
+            </h2>
+
+            {total === 0 ? (
+              <div className="h-[300px] flex items-center justify-center text-gray-500">
+                No complaint data available
               </div>
-            </div>
-            <div className="text-right text-gray-600">
-              <p>Complaint #{complaint._id}</p>
-              <p>Created {complaint.date}</p>
-            </div>
+            ) : (
+              <ResponsiveContainer
+                width="100%"
+                height={300}
+              >
+                <BarChart data={statusChartData}>
+
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                  />
+
+                  <XAxis dataKey="name" />
+
+                  <YAxis allowDecimals={false} />
+
+                  <Tooltip />
+
+                  <Legend />
+
+                  <Bar
+                    dataKey="complaints"
+                    name="Complaints"
+                    fill="#2563eb"
+                    radius={[6, 6, 0, 0]}
+                  />
+
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+
           </div>
 
-          <div className="flex gap-6 flex-wrap text-sm text-gray-700">
-            <p>{complaint.name}</p>
-            <p>Category: {complaint.category}</p>
-            <p>{complaint.location}</p>
+          {/* PIE CHART */}
+
+          <div className="bg-white rounded-xl shadow-sm border p-6">
+
+            <h2 className="text-lg font-semibold mb-5">
+              Complaint Distribution
+            </h2>
+
+            {total === 0 ? (
+              <div className="h-[300px] flex items-center justify-center text-gray-500">
+                No complaint data available
+              </div>
+            ) : (
+              <ResponsiveContainer
+                width="100%"
+                height={300}
+              >
+                <PieChart>
+
+                  <Pie
+                    data={pieData}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={100}
+                    label
+                  >
+                    {pieData.map(
+                      (entry, index) => (
+                        <Cell
+                          key={index}
+                          fill={pieColors[index]}
+                        />
+                      )
+                    )}
+                  </Pie>
+
+                  <Tooltip />
+
+                  <Legend />
+
+                </PieChart>
+              </ResponsiveContainer>
+            )}
+
           </div>
 
-          <div>
-            <h4 className="font-semibold mb-1">Description</h4>
-            <p className="text-gray-700">{complaint.description}</p>
-          </div>
-
-          <div>
-            <h4 className="font-semibold mb-1">Attachments</h4>
-            <div className="flex justify-between items-center px-4 py-2 bg-[#f9fafc] rounded border">
-              <p>{complaint.attachment || 'None'}</p>
-              {complaint.attachment && (
-                <i className="fa-solid fa-download text-blue-600 cursor-pointer"></i>
-              )}
-            </div>
-          </div>
         </div>
 
-        <div className="w-full lg:w-[25%] flex flex-col gap-4">
-          <div className="bg-white p-4 rounded shadow border">
-            <h4 className="font-semibold mb-3">Timeline</h4>
-            <ul className="space-y-2 text-sm">
-              <li>Complaint Submitted</li>
-              <p className="text-gray-600 ml-2">{complaint.createdAt}</p>
-            </ul>
-          </div>
-          <div className="bg-white p-4 rounded shadow border">
-            <h4 className="font-semibold mb-3">Quick Actions</h4>
-            <ul className="text-sm space-y-2 text-blue-600 cursor-pointer">
-              <li>Share complaint</li>
-              <li>Download Report</li>
-              <li>Print Details</li>
-            </ul>
-          </div>
-        </div>
-      </div>
+        {/* CATEGORY CHART */}
 
-      <div className="w-[90%] bg-white p-6 rounded shadow border">
-        <h4 className="font-semibold mb-4">Progress Tracker</h4>
-        <ol className="space-y-4">
-          <li className="flex items-center gap-4">
-            <div className="w-8 h-8 rounded-full bg-green-600 text-white grid place-items-center">
-              <i className="fa-regular fa-circle-check"></i>
-            </div>
-            <p className="font-medium">Pending</p>
-            <div className="flex-grow h-1 bg-green-600 rounded ml-4"></div>
-          </li>
-          <li className="flex items-center gap-4">
-            <div className="w-8 h-8 rounded-full border grid place-items-center">2</div>
-            <p className="font-medium">Assigned</p>
-            <div className="flex-grow h-1 bg-gray-200 rounded ml-4"></div>
-          </li>
-          <li className="flex items-center gap-4">
-            <div className="w-8 h-8 rounded-full border grid place-items-center">3</div>
-            <p className="font-medium">In Progress</p>
-            <div className="flex-grow h-1 bg-gray-200 rounded ml-4"></div>
-          </li>
-          <li className="flex items-center gap-4">
-            <div className="w-8 h-8 rounded-full border grid place-items-center">4</div>
-            <p className="font-medium">Resolved</p>
-            <div className="flex-grow h-1 bg-gray-200 rounded ml-4"></div>
-          </li>
-        </ol>
-      </div>
+        <div className="bg-white rounded-xl shadow-sm border p-6">
 
-      <div className="w-[90%] bg-white rounded shadow border">
-        <h4 className="font-semibold px-6 pt-4">Message</h4>
-        <hr />
-        <div className="max-h-64 overflow-y-auto p-4 space-y-3">
-          {messages.length === 0 ? (
-            <div className="text-center text-gray-500">
-              <i className="fa-regular fa-comment text-2xl mb-2"></i>
-              <p>No message yet. Start a conversation!</p>
+          <h2 className="text-lg font-semibold mb-5">
+            Complaints by Category
+          </h2>
+
+          {categoryChartData.length === 0 ? (
+            <div className="h-[300px] flex items-center justify-center text-gray-500">
+              No category data available
             </div>
           ) : (
-            messages.map((msg, i) => (
-              <div key={i} className="text-sm">
-                <div className="font-semibold">{msg.sender}</div>
-                <div className="text-gray-800">{msg.text}</div>
-                <div className="text-gray-500 text-xs">{msg.date} at {msg.time}</div>
-              </div>
-            ))
+            <ResponsiveContainer
+              width="100%"
+              height={300}
+            >
+              <BarChart data={categoryChartData}>
+
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                />
+
+                <XAxis dataKey="name" />
+
+                <YAxis allowDecimals={false} />
+
+                <Tooltip />
+
+                <Legend />
+
+                <Bar
+                  dataKey="complaints"
+                  name="Complaints"
+                  fill="#7c3aed"
+                  radius={[6, 6, 0, 0]}
+                />
+
+              </BarChart>
+            </ResponsiveContainer>
           )}
+
         </div>
 
-        <div className="flex items-center gap-2 px-6 pb-6 mt-4">
-          <input
-            type="text"
-            placeholder="Type your message"
-            value={messageText}
-            onChange={(e) => setMessageText(e.target.value)}
-            className="w-full border border-gray-300 rounded px-3 py-2"
-          />
-          <button
-            onClick={handleSendMessage}
-            className="bg-blue-600 text-white px-4 py-2 rounded"
-          >
-            <i className="fa-regular fa-paper-plane"></i> Send
-          </button>
+        {/* RECENT COMPLAINTS */}
+
+        <div className="bg-white rounded-xl shadow-sm border p-6">
+
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">
+            My Complaints
+          </h2>
+
+          {loading ? (
+            <p className="text-center text-gray-500 py-8">
+              Loading complaints...
+            </p>
+          ) : complaints.length === 0 ? (
+
+            <div className="text-center py-10">
+
+              <FiFileText className="mx-auto text-4xl text-gray-300 mb-3" />
+
+              <p className="text-gray-500 mb-4">
+                You haven't submitted any complaints yet.
+              </p>
+
+              <Link
+                to="/write"
+                className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+              >
+                <FiPlus />
+                Submit Complaint
+              </Link>
+
+            </div>
+
+          ) : (
+
+            <div className="divide-y">
+
+              {complaints.map((item) => (
+
+                <Link
+                  key={item._id}
+                  to={`/complaint/${item._id}`}
+                  className="py-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 hover:bg-gray-50 block"
+                >
+
+                  <div>
+
+                    <span className="text-xs font-mono text-gray-400">
+                      #
+                      {String(item._id)
+                        .slice(-6)
+                        .toUpperCase()}
+                    </span>
+
+                    <h3 className="text-sm font-semibold text-gray-800">
+                      {item.title || "No Subject"}
+                    </h3>
+
+                    <p className="text-xs text-gray-500">
+                      {item.category || "General"}
+                    </p>
+
+                  </div>
+
+                  <span
+                    className={`px-3 py-1 text-xs font-medium rounded-full border ${getBadgeClass(
+                      item.status
+                    )}`}
+                  >
+                    {item.status || "Pending"}
+                  </span>
+
+                </Link>
+
+              ))}
+
+            </div>
+
+          )}
+
         </div>
+
       </div>
 
-      <div className="w-[90%] text-left text-blue-600">
-        <Link to="/dashboard" className="text-blue-600 text-sm mt-4 inline-block">← Back to Dashboard</Link>
-      </div>
     </div>
   );
 };
 
-export default ComplaintDetails;
+// =====================================================
+// STAT CARD
+// =====================================================
+
+const StatCard = ({
+  title,
+  count,
+  icon,
+}) => {
+  return (
+    <div className="bg-white p-5 rounded-xl shadow-sm border flex items-center justify-between">
+
+      <div>
+        <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">
+          {title}
+        </p>
+
+        <p className="text-2xl font-bold text-gray-900 mt-1">
+          {count}
+        </p>
+      </div>
+
+      <div className="p-3 bg-gray-50 rounded-lg">
+        {icon}
+      </div>
+
+    </div>
+  );
+};
+
+export default UserDashboard;

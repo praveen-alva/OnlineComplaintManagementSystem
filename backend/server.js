@@ -4,6 +4,8 @@ const cors = require('cors');
 const nodemailer = require('nodemailer');
 const session = require('express-session');
 const MongoStore = require('connect-mongo');
+const http = require('http');
+const { Server } = require('socket.io');
 require('dotenv').config();
 
 const authRoutes = require('./routes/auth');
@@ -16,6 +18,28 @@ const allowedOrigins = [
 ];
 
 const app = express();
+
+// 1. Create HTTP server from Express app
+const server = http.createServer(app);
+
+// 2. Attach Socket.io to HTTP server with CORS config
+const io = new Server(server, {
+  cors: {
+    origin: allowedOrigins,
+    credentials: true
+  }
+});
+
+// 3. Make 'io' accessible in Express route handlers (via req.app.get('io'))
+app.set('io', io);
+
+// Socket.io connection event listeners
+io.on('connection', (socket) => {
+  console.log('⚡ Client connected to Socket.io:', socket.id);
+  socket.on('disconnect', () => {
+    console.log('❌ Client disconnected:', socket.id);
+  });
+});
 
 // ✅ Middleware: JSON parser
 app.use(express.json());
@@ -91,8 +115,8 @@ app.post('/api/send-feedback-mail', async (req, res) => {
   }
 });
 
-// ✅ Start Server
+// 4. Start Server listening via HTTP server instance (not app.listen)
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });

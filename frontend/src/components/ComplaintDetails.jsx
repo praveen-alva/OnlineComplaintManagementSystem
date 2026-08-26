@@ -137,7 +137,7 @@ const ComplaintDetails = () => {
       </div>
 
       <div className="w-[100%] text-center text-[30px] font-bold">
-        <Link to="/dashboard" className="text-blue-600 text-sm mt-4 inline-block">← Back to Dashboard</Link>
+        <Link to="/UserDashboard" className="text-blue-600 text-sm mt-4 inline-block">← Back to Dashboard</Link>
       </div>
     </div>
   );

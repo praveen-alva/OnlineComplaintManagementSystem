@@ -8,7 +8,9 @@ import Banner from './components/Banner';
 import Page1 from './components/Page1';
 import Page2 from './components/Page2';
 import Footer from './components/Footer';
-import Dashboard from './components/Dashboard';
+import AgentDashboard from './components/Dashboards/Agent/AgentDashboard';
+
+import UserDashboard from './components/Dashboards/User/UserDashBoard';
 import WriteComplaint from './components/WriteComplaint';
 import ComplaintDetails from './components/ComplaintDetails';
 import ComplaintListByStatus from './components/ComplaintListByStatus';
@@ -25,7 +27,8 @@ function MainLayout() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
-        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/UserDashboard" element={<UserDashboard />} />
+        <Route path='/AgentDashboard' element={<AgentDashboard/>}/>
         <Route path="/write" element={<WriteComplaint />} />
        
 
