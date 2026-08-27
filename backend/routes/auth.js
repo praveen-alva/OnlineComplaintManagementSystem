@@ -5,23 +5,25 @@ const User = require('../models/user');
 const router = express.Router();
 
 // Register
-router.post('/register', async (req, res) => {
+router.post("/register", async (req, res) => {
   try {
-    console.log("REGISTER BODY:", req.body);
+    const {
+      name,
+      email,
+      password,
+    } = req.body;
 
-    const { name, email, password, type } = req.body;
-
-    if (!name || !email || !password || !type) {
+    if (!name || !email || !password) {
       return res.status(400).json({
-        message: 'All fields are required'
+        message: "All fields are required",
       });
     }
 
-    const exists = await User.findOne({ email });
+    const existingUser = await User.findOne({ email });
 
-    if (exists) {
+    if (existingUser) {
       return res.status(400).json({
-        message: 'Email already in use'
+        message: "Email already registered",
       });
     }
 
@@ -31,59 +33,75 @@ router.post('/register', async (req, res) => {
       name,
       email,
       password: hashedPassword,
-      type
+
+      // IMPORTANT
+      // Public registration can ONLY create users.
+      type: "user",
     });
 
-    await newUser.save();
+    const savedUser = await newUser.save();
 
     res.status(201).json({
-      message: 'User created',
+      message: "User registered successfully",
       user: {
-        name: newUser.name,
-        email: newUser.email,
-        type: newUser.type
-      }
+        _id: savedUser._id,
+        name: savedUser.name,
+        email: savedUser.email,
+        type: savedUser.type,
+      },
     });
 
-  } catch (err) {
-    console.error("REGISTER ERROR:", err);
+  } catch (error) {
+    console.error("❌ Register Error:", error);
+
     res.status(500).json({
-      message: 'Server error'
+      message: "Registration failed",
+      error: error.message,
     });
   }
 });
-
 
 // Login
-router.post('/login', async (req, res) => {
-  const { email, password } = req.body;
-
-  if (!email || !password)
-    return res.status(400).json({ message: 'Email and password are required' });
-
+router.post("/login", async (req, res) => {
   try {
-    const user = await User.findOne({ email });
-    if (!user)
-      return res.status(400).json({ message: 'Invalid credentials' });
+    const { email, password } = req.body;
 
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch)
-      return res.status(400).json({ message: 'Invalid credentials' });
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      return res.status(401).json({
+        message: "Invalid email or password",
+      });
+    }
+
+    const isMatch = await bcrypt.compare(
+      password,
+      user.password
+    );
+
+    if (!isMatch) {
+      return res.status(401).json({
+        message: "Invalid email or password",
+      });
+    }
 
     res.status(200).json({
-      message: 'Login successful',
+      message: "Login successful",
       user: {
+        id: user._id,
         name: user.name,
         email: user.email,
-        type: user.type
-      }
+        type: user.type,
+      },
     });
-  } catch (err) {
-    console.error('Login error:', err.message);
-    res.status(500).json({ message: 'Server error during login' });
+  } catch (error) {
+    console.error("Login Error:", error);
+
+    res.status(500).json({
+      message: "Login failed",
+    });
   }
 });
-
 
 
 module.exports = router;

@@ -15,6 +15,7 @@ import WriteComplaint from './components/WriteComplaint';
 import ComplaintDetails from './components/ComplaintDetails';
 import ComplaintListByStatus from './components/ComplaintListByStatus';
 import ChatBot from './components/ChatBoat';
+import AdminDashboard from './components/Dashboards/Admin/AdminDashboard';
 
 
 function MainLayout() {
@@ -31,6 +32,7 @@ function MainLayout() {
         <Route path="/UserDashboard" element={<UserDashboard />} />
         <Route path='/AgentDashboard' element={<AgentDashboard/>}/>
         <Route path="/write" element={<WriteComplaint />} />
+        <Route path='/AdminDashboard' element={<AdminDashboard/>}/>
 
        
 

@@ -11,6 +11,7 @@ require('dotenv').config();
 const authRoutes = require('./routes/auth');
 const complaintRoutes = require('./routes/complaints');
 const chatRoutes = require('./routes/chat');
+const adminRoutes = require("./routes/admin");
 
 const allowedOrigins = [
   'https://smartbridge-project-frontend.onrender.com',
@@ -81,6 +82,7 @@ mongoose.connect(process.env.MONGO_URI)
 app.use('/api', authRoutes);
 app.use('/api/complaints', complaintRoutes);
 app.use('/api/chat',chatRoutes);
+app.use("/api/admin", adminRoutes);
 
 // ✅ Feedback Mail Route
 app.post('/api/send-feedback-mail', async (req, res) => {

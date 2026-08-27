@@ -14,14 +14,23 @@ const userSchema = new mongoose.Schema({
   type:
   {
     type: String,
-    enum:["user","agent"],
-    required: true
+    enum:["admin","agent","used"],
+    default:"user",
   },
   password:
   {
     type: String,
     required: true
   },
-});
+  isActive: {
+    type:Boolean,
+    default:true,
+  },
+  
+},
+{
+  timestamps:true,
+}
+);
 
-module.exports = mongoose.model('User', userSchema);
+module.exports = mongoose.model("User", userSchema);

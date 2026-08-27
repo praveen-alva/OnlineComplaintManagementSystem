@@ -39,26 +39,15 @@ const Login = () => {
       );
 
       console.log("Login response:", res.data);
-    
+
 
       const loggedUser = res.data.user;
-
-      if (!loggedUser) {
-        setError("Invalid login response");
-        return;
-      }
-
-      // Clear previous login data
-      localStorage.removeItem("user");
-      localStorage.removeItem("agent");
-
       // USER LOGIN
       if (loggedUser.type === "user") {
         localStorage.setItem(
           "user",
           JSON.stringify(loggedUser)
         );
-
         navigate("/UserDashboard");
       }
 
@@ -72,8 +61,17 @@ const Login = () => {
         navigate("/AgentDashboard");
       }
 
+      else if (loggedUser.type === "admin") {
+        localStorage.setItem(
+          "admin",
+          JSON.stringify(loggedUser)
+        );
+        navigate("/AdminDashboard");
+      }
       else {
+
         setError("Invalid account type");
+
       }
 
     } catch (err) {

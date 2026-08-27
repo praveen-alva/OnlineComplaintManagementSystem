@@ -17,10 +17,12 @@ import {
 } from "recharts";
 
 import {
-  FiFileText,
+  FiBell,
+  FiCheckCircle,
   FiClock,
   FiAlertCircle,
-  FiCheckCircle,
+  FiFileText,
+  FiX,
 } from "react-icons/fi";
 
 const BASE_URL =
@@ -32,65 +34,166 @@ const AgentDashboard = () => {
   const [complaints, setComplaints] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("All");
+
   const [updatingId, setUpdatingId] = useState(null);
 
-  // ===============================
+  // Notifications
+  const [notifications, setNotifications] = useState([]);
+  const [showNotifications, setShowNotifications] =
+    useState(false);
+
+  // =====================================================
   // FETCH COMPLAINTS
-  // ===============================
-
-  useEffect(() => {
-    fetchComplaints();
-
-    socket.on("complaintStatusUpdated", (updatedItem) => {
-      setComplaints((prev) =>
-        prev.map((item) =>
-          item._id === updatedItem._id ? updatedItem : item
-        )
-      );
-    });
-
-    socket.on("newComplaint", (newComplaint) => {
-      setComplaints((prev) => [newComplaint, ...prev]);
-    });
-
-    return () => {
-      socket.off("complaintStatusUpdated");
-      socket.off("newComplaint");
-    };
-  }, []);
-
-  // ===============================
-  // GET ALL COMPLAINTS
-  // ===============================
+  // =====================================================
 
   const fetchComplaints = async () => {
     try {
       setLoading(true);
 
-      const res = await axios.get(
+      const response = await axios.get(
         `${BASE_URL}/api/complaints`
       );
 
-      setComplaints(res.data.complaints || res.data || []);
+      setComplaints(
+        response.data.complaints ||
+          response.data ||
+          []
+      );
     } catch (error) {
       console.error(
         "Failed to fetch complaints:",
-        error
+        error.response?.data || error.message
       );
     } finally {
       setLoading(false);
     }
   };
 
-  // ===============================
-  // UPDATE STATUS
-  // ===============================
+  // =====================================================
+  // ADD NOTIFICATION
+  // =====================================================
 
-  const handleStatusChange = async (id, newStatus) => {
+  const addNotification = (message) => {
+    const notification = {
+      id: Date.now(),
+      message,
+      time: new Date().toLocaleTimeString(),
+    };
+
+    setNotifications((prev) => [
+      notification,
+      ...prev,
+    ]);
+  };
+
+  // =====================================================
+  // SOCKET.IO
+  // =====================================================
+
+  useEffect(() => {
+    fetchComplaints();
+
+    // New complaint
+    const handleNewComplaint = (newComplaint) => {
+      setComplaints((prev) => [
+        newComplaint,
+        ...prev,
+      ]);
+
+      addNotification(
+        `New complaint received: ${
+          newComplaint.title || "New Complaint"
+        }`
+      );
+    };
+
+    // Complaint status updated
+    const handleStatusUpdate = (updatedComplaint) => {
+      setComplaints((prev) =>
+        prev.map((complaint) =>
+          complaint._id === updatedComplaint._id
+            ? updatedComplaint
+            : complaint
+        )
+      );
+
+      addNotification(
+        `Complaint #${String(
+          updatedComplaint._id
+        )
+          .slice(-6)
+          .toUpperCase()} status changed to ${
+          updatedComplaint.status
+        }`
+      );
+    };
+
+    // Complaint deleted
+    const handleComplaintDeleted = (
+      deletedComplaint
+    ) => {
+      setComplaints((prev) =>
+        prev.filter(
+          (complaint) =>
+            complaint._id !==
+            deletedComplaint._id
+        )
+      );
+
+      addNotification(
+        `Complaint #${String(
+          deletedComplaint._id
+        )
+          .slice(-6)
+          .toUpperCase()} was deleted`
+      );
+    };
+
+    socket.on(
+      "newComplaint",
+      handleNewComplaint
+    );
+
+    socket.on(
+      "complaintStatusUpdated",
+      handleStatusUpdate
+    );
+
+    socket.on(
+      "complaintDeleted",
+      handleComplaintDeleted
+    );
+
+    return () => {
+      socket.off(
+        "newComplaint",
+        handleNewComplaint
+      );
+
+      socket.off(
+        "complaintStatusUpdated",
+        handleStatusUpdate
+      );
+
+      socket.off(
+        "complaintDeleted",
+        handleComplaintDeleted
+      );
+    };
+  }, []);
+
+  // =====================================================
+  // UPDATE STATUS
+  // =====================================================
+
+  const handleStatusChange = async (
+    id,
+    newStatus
+  ) => {
     try {
       setUpdatingId(id);
 
-      const res = await axios.patch(
+      const response = await axios.patch(
         `${BASE_URL}/api/complaints/${id}`,
         {
           status: newStatus,
@@ -98,19 +201,21 @@ const AgentDashboard = () => {
       );
 
       const updatedComplaint =
-        res.data.complaint || res.data;
+        response.data.complaint ||
+        response.data;
 
       setComplaints((prev) =>
-        prev.map((item) =>
-          item._id === id
+        prev.map((complaint) =>
+          complaint._id === id
             ? updatedComplaint
-            : item
+            : complaint
         )
       );
     } catch (error) {
       console.error(
         "Failed to update status:",
-        error.response?.data || error.message
+        error.response?.data ||
+          error.message
       );
 
       alert(
@@ -122,30 +227,33 @@ const AgentDashboard = () => {
     }
   };
 
-  // ===============================
+  // =====================================================
   // STATISTICS
-  // ===============================
+  // =====================================================
 
   const total = complaints.length;
 
   const pending = complaints.filter(
-    (c) =>
-      c.status?.toLowerCase() === "pending"
+    (complaint) =>
+      complaint.status?.toLowerCase() ===
+      "pending"
   ).length;
 
   const inProgress = complaints.filter(
-    (c) =>
-      c.status?.toLowerCase() === "in progress"
+    (complaint) =>
+      complaint.status?.toLowerCase() ===
+      "in progress"
   ).length;
 
   const resolved = complaints.filter(
-    (c) =>
-      c.status?.toLowerCase() === "resolved"
+    (complaint) =>
+      complaint.status?.toLowerCase() ===
+      "resolved"
   ).length;
 
-  // ===============================
-  // STATUS CHART DATA
-  // ===============================
+  // =====================================================
+  // STATUS CHART
+  // =====================================================
 
   const statusData = [
     {
@@ -162,9 +270,9 @@ const AgentDashboard = () => {
     },
   ];
 
-  // ===============================
-  // PIE CHART DATA
-  // ===============================
+  // =====================================================
+  // PIE CHART
+  // =====================================================
 
   const pieData = [
     {
@@ -181,9 +289,15 @@ const AgentDashboard = () => {
     },
   ];
 
-  // ===============================
-  // CATEGORY DATA
-  // ===============================
+  const pieColors = [
+    "#ef4444",
+    "#f59e0b",
+    "#22c55e",
+  ];
+
+  // =====================================================
+  // CATEGORY CHART
+  // =====================================================
 
   const categoryCounts = {};
 
@@ -202,9 +316,9 @@ const AgentDashboard = () => {
     count,
   }));
 
-  // ===============================
+  // =====================================================
   // FILTER
-  // ===============================
+  // =====================================================
 
   const filteredComplaints =
     filter === "All"
@@ -215,16 +329,17 @@ const AgentDashboard = () => {
             filter.toLowerCase()
         );
 
-  // ===============================
+  // =====================================================
   // UI
-  // ===============================
+  // =====================================================
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
-
       <div className="max-w-7xl mx-auto space-y-6">
 
-        {/* ================= HEADER ================= */}
+        {/* ================================================= */}
+        {/* HEADER */}
+        {/* ================================================= */}
 
         <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
 
@@ -238,31 +353,143 @@ const AgentDashboard = () => {
             </p>
           </div>
 
-          <div className="flex gap-2 flex-wrap">
-            {[
-              "All",
-              "Pending",
-              "In Progress",
-              "Resolved",
-            ].map((status) => (
+          <div className="flex items-center gap-4">
+
+            {/* Notification */}
+
+            <div className="relative">
+
               <button
-                key={status}
                 onClick={() =>
-                  setFilter(status)
+                  setShowNotifications(
+                    (prev) => !prev
+                  )
                 }
-                className={`px-3 py-1.5 text-xs font-medium rounded-lg border ${
-                  filter === status
-                    ? "bg-blue-600 text-white border-blue-600"
-                    : "bg-white text-gray-600 border-gray-300"
-                }`}
+                className="relative p-3 bg-white border rounded-xl hover:bg-gray-50"
               >
-                {status}
+                <FiBell className="text-xl text-gray-700" />
+
+                {notifications.length > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold min-w-[20px] h-5 px-1 rounded-full flex items-center justify-center">
+                    {notifications.length > 99
+                      ? "99+"
+                      : notifications.length}
+                  </span>
+                )}
               </button>
-            ))}
+
+              {/* Notification Dropdown */}
+
+              {showNotifications && (
+                <div className="absolute right-0 mt-3 w-80 bg-white border rounded-xl shadow-xl z-50">
+
+                  <div className="flex justify-between items-center px-4 py-3 border-b">
+
+                    <h3 className="font-semibold">
+                      Notifications
+                    </h3>
+
+                    <button
+                      onClick={() =>
+                        setShowNotifications(false)
+                      }
+                      className="text-gray-400 hover:text-gray-700"
+                    >
+                      <FiX />
+                    </button>
+
+                  </div>
+
+                  <div className="max-h-80 overflow-y-auto">
+
+                    {notifications.length === 0 ? (
+
+                      <div className="p-6 text-center text-gray-500 text-sm">
+                        No new notifications
+                      </div>
+
+                    ) : (
+
+                      notifications.map(
+                        (notification) => (
+                          <div
+                            key={notification.id}
+                            className="px-4 py-3 border-b hover:bg-gray-50"
+                          >
+
+                            <p className="text-sm text-gray-800">
+                              {notification.message}
+                            </p>
+
+                            <p className="text-xs text-gray-400 mt-1">
+                              {notification.time}
+                            </p>
+
+                          </div>
+                        )
+                      )
+
+                    )}
+
+                  </div>
+
+                  {notifications.length > 0 && (
+                    <div className="p-3 border-t">
+
+                      <button
+                        onClick={() => {
+                          setNotifications([]);
+                          setShowNotifications(false);
+                        }}
+                        className="w-full text-sm text-blue-600 hover:text-blue-800"
+                      >
+                        Mark all as read
+                      </button>
+
+                    </div>
+                  )}
+
+                </div>
+              )}
+
+            </div>
+
+            {/* Filters */}
+
+            <div className="flex gap-2 flex-wrap">
+
+              {[
+                "All",
+                "Pending",
+                "In Progress",
+                "Resolved",
+              ].map((status) => (
+
+                <button
+                  key={status}
+                  onClick={() =>
+                    setFilter(status)
+                  }
+                  className={`px-3 py-1.5 text-xs font-medium rounded-lg border ${
+                    filter === status
+                      ? "bg-blue-600 text-white border-blue-600"
+                      : "bg-white text-gray-600 border-gray-300"
+                  }`}
+                >
+                  {status}
+                </button>
+
+              ))}
+
+            </div>
+
           </div>
+
         </header>
 
-        {/* ================= STAT CARDS ================= */}
+        {/* ================================================= */}
+        {/* STATISTICS */}
+        {/* ================================================= */}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
 
@@ -292,15 +519,17 @@ const AgentDashboard = () => {
 
         </div>
 
-        {/* ================= CHARTS ================= */}
+        {/* ================================================= */}
+        {/* CHARTS */}
+        {/* ================================================= */}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-          {/* BAR CHART */}
+          {/* Bar Chart */}
 
           <div className="bg-white rounded-xl shadow-sm border p-6">
 
-            <h2 className="text-lg font-semibold text-gray-900 mb-5">
+            <h2 className="text-lg font-semibold mb-5">
               Complaint Status
             </h2>
 
@@ -332,11 +561,11 @@ const AgentDashboard = () => {
 
           </div>
 
-          {/* PIE CHART */}
+          {/* Pie Chart */}
 
           <div className="bg-white rounded-xl shadow-sm border p-6">
 
-            <h2 className="text-lg font-semibold text-gray-900 mb-5">
+            <h2 className="text-lg font-semibold mb-5">
               Complaint Distribution
             </h2>
 
@@ -355,20 +584,18 @@ const AgentDashboard = () => {
                   outerRadius={100}
                   label
                 >
+
                   {pieData.map(
                     (entry, index) => (
                       <Cell
-                        key={`cell-${index}`}
+                        key={index}
                         fill={
-                          [
-                            "#ef4444",
-                            "#f59e0b",
-                            "#22c55e",
-                          ][index]
+                          pieColors[index]
                         }
                       />
                     )
                   )}
+
                 </Pie>
 
                 <Tooltip />
@@ -382,19 +609,24 @@ const AgentDashboard = () => {
 
         </div>
 
-        {/* ================= CATEGORY CHART ================= */}
+        {/* ================================================= */}
+        {/* CATEGORY CHART */}
+        {/* ================================================= */}
 
         <div className="bg-white rounded-xl shadow-sm border p-6">
 
-          <h2 className="text-lg font-semibold text-gray-900 mb-5">
+          <h2 className="text-lg font-semibold mb-5">
             Complaints by Category
           </h2>
 
           {categoryData.length === 0 ? (
+
             <p className="text-center text-gray-500 py-10">
               No category data available
             </p>
+
           ) : (
+
             <ResponsiveContainer
               width="100%"
               height={300}
@@ -426,30 +658,39 @@ const AgentDashboard = () => {
 
               </BarChart>
             </ResponsiveContainer>
+
           )}
 
         </div>
 
-        {/* ================= TABLE ================= */}
+        {/* ================================================= */}
+        {/* COMPLAINT TABLE */}
+        {/* ================================================= */}
 
         <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
 
           {loading ? (
+
             <div className="p-12 text-center text-gray-500">
               Loading complaints...
             </div>
+
           ) : filteredComplaints.length === 0 ? (
+
             <div className="p-12 text-center text-gray-500">
               No complaints found.
             </div>
+
           ) : (
+
             <div className="overflow-x-auto">
 
-              <table className="w-full text-left text-sm text-gray-600">
+              <table className="w-full text-left text-sm">
 
                 <thead className="bg-gray-100 text-xs text-gray-500 uppercase">
 
                   <tr>
+
                     <th className="px-6 py-3">
                       ID
                     </th>
@@ -467,8 +708,9 @@ const AgentDashboard = () => {
                     </th>
 
                     <th className="px-6 py-3">
-                      Status Action
+                      Status
                     </th>
+
                   </tr>
 
                 </thead>
@@ -477,6 +719,7 @@ const AgentDashboard = () => {
 
                   {filteredComplaints.map(
                     (item) => (
+
                       <tr
                         key={item._id}
                         className="hover:bg-gray-50"
@@ -489,7 +732,7 @@ const AgentDashboard = () => {
                             .toUpperCase()}
                         </td>
 
-                        <td className="px-6 py-4 font-medium text-gray-900">
+                        <td className="px-6 py-4 font-medium">
                           {item.title ||
                             item.subject ||
                             "No Subject"}
@@ -523,7 +766,7 @@ const AgentDashboard = () => {
                                 e.target.value
                               )
                             }
-                            className="px-3 py-1.5 border rounded-lg text-xs font-semibold bg-white cursor-pointer outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                            className="px-3 py-1.5 border rounded-lg text-xs font-semibold bg-white outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
                           >
 
                             <option value="Pending">
@@ -543,6 +786,7 @@ const AgentDashboard = () => {
                         </td>
 
                       </tr>
+
                     )
                   )}
 
@@ -551,6 +795,7 @@ const AgentDashboard = () => {
               </table>
 
             </div>
+
           )}
 
         </div>
@@ -560,32 +805,36 @@ const AgentDashboard = () => {
   );
 };
 
-// ===============================
+// =====================================================
 // STAT CARD
-// ===============================
+// =====================================================
 
 const StatCard = ({
   title,
   count,
   icon,
-}) => (
-  <div className="bg-white p-5 rounded-xl shadow-sm border flex items-center justify-between">
+}) => {
+  return (
+    <div className="bg-white p-5 rounded-xl shadow-sm border flex items-center justify-between">
 
-    <div>
-      <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">
-        {title}
-      </p>
+      <div>
 
-      <p className="text-2xl font-bold text-gray-900 mt-1">
-        {count}
-      </p>
+        <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">
+          {title}
+        </p>
+
+        <p className="text-2xl font-bold text-gray-900 mt-1">
+          {count}
+        </p>
+
+      </div>
+
+      <div className="p-3 bg-gray-50 rounded-lg text-blue-600 text-xl">
+        {icon}
+      </div>
+
     </div>
-
-    <div className="p-3 bg-gray-50 rounded-lg text-blue-600 text-xl">
-      {icon}
-    </div>
-
-  </div>
-);
+  );
+};
 
 export default AgentDashboard;
