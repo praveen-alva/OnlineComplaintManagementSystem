@@ -20,7 +20,7 @@ import AdminDashboard from './components/Dashboards/Admin/AdminDashboard';
 
 function MainLayout() {
   const location = useLocation();
-  const hideLayoutRoutes = ['/login', '/register','AdminDashboard','AgentDashboard'];
+  const hideLayoutRoutes = ['/login', '/register','/AdminDashboard','/AgentDashboard'];
   const isLayoutVisible = !hideLayoutRoutes.includes(location.pathname);
 
   return (
