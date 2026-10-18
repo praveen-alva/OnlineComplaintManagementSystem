@@ -121,6 +121,6 @@ app.post('/api/send-feedback-mail', async (req, res) => {
 
 // 4. Start Server listening via HTTP server instance (not app.listen)
 const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => {
+server.listen(PORT, "0.0.0.0",() => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
