@@ -14,8 +14,7 @@ const chatRoutes = require('./routes/chat');
 const adminRoutes = require("./routes/admin");
 
 const allowedOrigins = [
-  'https://smartbridge-project-frontend.onrender.com',
-  'https://smartbridge-project-1.onrender.com',
+  'https://resolvenow-tx4o.onrender.com',
   'http://localhost:5173'
 ];
 
